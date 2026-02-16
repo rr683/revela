@@ -1,0 +1,231 @@
+# Default Configuration for Video-to-3D Reconstruction Platform
+
+# Reconstruction Engine Settings
+reconstruction:
+  # Default reconstruction method: "splatfacto" (3D Gaussian Splatting) or "nerfacto" (NeRF)
+  default_method: "splatfacto"
+  
+  # Training iterations - reduce for faster preview, increase for quality
+  max_iterations: 30000
+  
+  # Output resolution for rendered views
+  resolution: 1024
+  
+  # GPU memory management
+  max_batch_size: 4096
+  
+  # Nerfstudio pipeline configurations
+  pipelines:
+    splatfacto:
+      iterations: 30000
+      save_iterations: [7000, 15000, 30000]
+      densification_interval: 100
+      opacity_reset_interval: 3000
+      densify_grad_threshold: 0.0002
+      
+    nerfacto:
+      iterations: 30000
+      save_iterations: [7000, 15000, 30000]
+      num_coarse_samples: 64
+      num_fine_samples: 128
+
+# Video Preprocessing Settings
+preprocessing:
+  # Frame extraction from video
+  frame_extraction:
+    # Frames per second to extract (lower = faster but less detail)
+    fps: 10
+    
+    # Maximum number of frames to process
+    max_frames: 300
+    
+    # Minimum frames required for reconstruction
+    min_frames: 50
+    
+    # Image format for extracted frames
+    format: "png"
+    
+    # Quality settings
+    quality: 95
+  
+  # Frame quality filtering
+  quality_filter:
+    # Enable automatic filtering of low-quality frames
+    enabled: true
+    
+    # Minimum sharpness score (0-100, using Laplacian variance)
+    min_sharpness: 10.0
+    
+    # Maximum allowed motion blur
+    max_blur: 50.0
+    
+    # Exposure bounds (0-255 pixel intensity)
+    min_exposure: 20
+    max_exposure: 235
+  
+  # Image preprocessing
+  image_processing:
+    # Resize frames to this maximum dimension (maintains aspect ratio)
+    max_dimension: 1920
+    
+    # Apply histogram equalization for low-light scenes
+    auto_enhance: false
+    
+    # Lens distortion correction (requires camera intrinsics)
+    undistort: false
+
+# COLMAP Settings (Structure-from-Motion)
+colmap:
+  # Feature extraction
+  feature_extraction:
+    # Feature detector: "sift" or "superpoint"
+    detector: "sift"
+    
+    # Maximum number of features per image
+    max_features: 8192
+    
+    # Use GPU for feature extraction (much faster)
+    use_gpu: true
+  
+  # Feature matching
+  matching:
+    # Matching method: "sequential", "exhaustive", "vocab_tree"
+    method: "sequential"
+    
+    # Sequential matching: match every Nth image
+    overlap: 10
+    
+    # Use GPU for matching
+    use_gpu: true
+  
+  # Bundle adjustment
+  bundle_adjustment:
+    # Refine camera intrinsics
+    refine_focal_length: true
+    refine_principal_point: true
+    refine_extra_params: true
+    
+    # Maximum number of bundle adjustment iterations
+    max_iterations: 100
+
+# Storage Settings
+storage:
+  # Local paths
+  upload_dir: "data/uploads"
+  output_dir: "data/outputs"
+  cache_dir: "data/cache"
+  
+  # Object storage (MinIO/S3)
+  use_object_storage: false
+  endpoint: "localhost:9000"
+  access_key: "minioadmin"
+  secret_key: "minioadmin"
+  bucket_name: "video-3d-recon"
+  
+  # Cleanup policy
+  auto_cleanup:
+    # Delete uploaded videos after successful reconstruction
+    delete_uploads: false
+    
+    # Delete intermediate files (COLMAP data, extracted frames)
+    delete_intermediates: true
+    
+    # Retention period for completed jobs (days)
+    retention_days: 30
+
+# Database Settings
+database:
+  # PostgreSQL connection
+  host: "localhost"
+  port: 5432
+  database: "video3d"
+  user: "video3d"
+  password: "video3d_password"
+  
+  # Connection pool
+  pool_size: 5
+  max_overflow: 10
+
+# Redis Settings (Job Queue)
+redis:
+  host: "localhost"
+  port: 6379
+  db: 0
+  password: null
+
+# Celery Settings (Background Workers)
+celery:
+  # Broker URL
+  broker_url: "redis://localhost:6379/0"
+  
+  # Result backend
+  result_backend: "redis://localhost:6379/0"
+  
+  # Task settings
+  task_serializer: "json"
+  result_serializer: "json"
+  accept_content: ["json"]
+  timezone: "UTC"
+  
+  # Worker settings
+  worker_prefetch_multiplier: 1
+  worker_max_tasks_per_child: 10
+
+# API Settings
+api:
+  # Server
+  host: "0.0.0.0"
+  port: 8000
+  
+  # CORS
+  cors_origins:
+    - "http://localhost:5173"
+    - "http://localhost:3000"
+  
+  # Upload limits
+  max_upload_size_mb: 2048  # 2GB
+  allowed_video_formats:
+    - ".mp4"
+    - ".mov"
+    - ".avi"
+    - ".mkv"
+    - ".webm"
+  
+  # Rate limiting
+  rate_limit:
+    enabled: true
+    requests_per_minute: 10
+
+# Logging
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "json"  # "json" or "text"
+  
+  # Log to file
+  file:
+    enabled: true
+    path: "logs/app.log"
+    rotation: "10 MB"
+    retention: "7 days"
+  
+  # Log to console
+  console:
+    enabled: true
+    colorize: true
+
+# Development Settings
+development:
+  # Enable debug mode
+  debug: true
+  
+  # Auto-reload on code changes
+  reload: true
+  
+  # Use sample data
+  use_sample_data: false
+  
+# Production Settings
+production:
+  debug: false
+  reload: false
+  workers: 4

@@ -1,0 +1,65 @@
+# Core Dependencies
+python-dotenv==1.0.0
+pyyaml==6.0.1
+pydantic==2.5.0
+
+# Web Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+websockets==12.0
+
+# Task Queue
+celery==5.3.4
+redis==5.0.1
+
+# Database
+sqlalchemy==2.0.25
+alembic==1.13.1
+psycopg2-binary==2.9.9
+
+# Object Storage
+minio==7.2.3
+
+# Video Processing
+opencv-python==4.9.0.80
+opencv-contrib-python==4.9.0.80
+ffmpeg-python==0.2.0
+
+# Image Processing
+Pillow==10.2.0
+imageio==2.33.1
+imageio-ffmpeg==0.4.9
+
+# Scientific Computing
+numpy==1.26.3
+scipy==1.12.0
+
+# Deep Learning
+torch==2.1.2
+torchvision==0.16.2
+--extra-index-url https://download.pytorch.org/whl/cu118
+
+# Nerfstudio (install separately with: pip install nerfstudio)
+# nerfstudio requires specific versions and CUDA setup
+# Follow: https://docs.nerf.studio/quickstart/installation.html
+
+# Utilities
+tqdm==4.66.1
+rich==13.7.0
+click==8.1.7
+
+# Testing
+pytest==7.4.4
+pytest-asyncio==0.23.3
+pytest-cov==4.1.0
+httpx==0.26.0
+
+# Development
+black==24.1.1
+flake8==7.0.0
+mypy==1.8.0
+isort==5.13.2
+
+# Monitoring
+prometheus-client==0.19.0
