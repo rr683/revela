@@ -49,9 +49,15 @@ class ImageProcessingConfig(BaseModel):
     auto_enhance: bool = False
     undistort: bool = False
 
+class ImageIngestionConfig(BaseModel):
+    """Image set ingestion settings."""
+    supported_formats: List[str] = [".jpg", ".jpeg", ".png", ".tiff", ".tif", ".bmp"]
+    max_images: int = 500
+
 class PreprocessingConfig(BaseModel):
     """Preprocessing configuration."""
     frame_extraction: FrameExtractionConfig = Field(default_factory=FrameExtractionConfig)
+    image_ingestion: ImageIngestionConfig = Field(default_factory=ImageIngestionConfig)
     quality_filter: QualityFilterConfig = Field(default_factory=QualityFilterConfig)
     image_processing: ImageProcessingConfig = Field(default_factory=ImageProcessingConfig)
 

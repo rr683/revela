@@ -15,12 +15,12 @@ print("Testing imports...")
 print()
 
 try:
-    print("✓ Importing config...")
+    print("Importing config...")
     from config import get_config
     config = get_config()
     print(f"  - Loaded config: reconstruction method = {config.reconstruction.default_method}")
-    
-    print("✓ Importing engine...")
+
+    print("Importing engine...")
     from engine import (
         NerfstudioWrapper,
         ReconstructionInput,
@@ -28,44 +28,47 @@ try:
         generate_job_id
     )
     print(f"  - Generated test job ID: {generate_job_id()}")
-    
-    print("✓ Importing preprocessing...")
+
+    print("Importing preprocessing...")
     from preprocessing import (
         VideoPreprocessor,
+        ImageProcessor,
         COLMAPPoseEstimator,
         check_colmap_installed
     )
     colmap_available = check_colmap_installed()
     print(f"  - COLMAP installed: {colmap_available}")
-    
+    print(f"  - Image formats: {config.preprocessing.image_ingestion.supported_formats}")
+
     print()
     print("=" * 60)
-    print("✅ All imports successful!")
+    print("All imports successful!")
     print("=" * 60)
     print()
-    
+
     if not colmap_available:
-        print("⚠️  WARNING: COLMAP is not installed")
+        print("WARNING: COLMAP is not installed")
         print("   Install with: conda install -c conda-forge colmap")
         print("   The system will use mock poses for testing")
         print()
-    
+
     print("Next steps:")
     print("1. Install COLMAP (if not already installed)")
-    print("2. Prepare a test video (mp4, mov, etc.)")
+    print("2. Prepare a test video or image set")
     print("3. Run: python test_reconstruction.py --video path/to/video.mp4")
+    print("   Or:  python test_reconstruction.py --image-dir path/to/images/")
     print()
-    
+
     sys.exit(0)
-    
+
 except ImportError as e:
-    print(f"❌ Import failed: {e}")
+    print(f"Import failed: {e}")
     print()
     print("Make sure you have installed dependencies:")
     print("  pip install -r requirements.txt")
     print()
     sys.exit(1)
-    
+
 except Exception as e:
-    print(f"❌ Error: {e}")
+    print(f"Error: {e}")
     sys.exit(1)
