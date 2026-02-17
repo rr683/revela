@@ -44,6 +44,9 @@ torchvision==0.16.2
 # nerfstudio requires specific versions and CUDA setup
 # Follow: https://docs.nerf.studio/quickstart/installation.html
 
+# 3D Format Conversion (glTF/GLB export for game engines)
+trimesh[easy]==4.0.8
+
 # Utilities
 tqdm==4.66.1
 rich==13.7.0

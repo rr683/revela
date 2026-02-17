@@ -3,6 +3,7 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Environment } from "@react-three/drei";
 import * as THREE from "three";
 import { PLYLoader } from "three/examples/jsm/loaders/PLYLoader.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 interface ModelViewerProps {
   url: string;
@@ -18,7 +19,6 @@ function PointCloudModel({ url }: { url: string }) {
       url,
       (geo) => {
         geo.computeVertexNormals();
-        // Center the geometry
         geo.computeBoundingBox();
         const center = new THREE.Vector3();
         geo.boundingBox!.getCenter(center);
@@ -85,8 +85,41 @@ function MeshModel({ url }: { url: string }) {
   );
 }
 
+function GltfModel({ url }: { url: string }) {
+  const [scene, setScene] = useState<THREE.Group | null>(null);
+
+  useEffect(() => {
+    const loader = new GLTFLoader();
+    loader.load(
+      url,
+      (gltf) => {
+        const model = gltf.scene;
+        // Center the model
+        const box = new THREE.Box3().setFromObject(model);
+        const center = box.getCenter(new THREE.Vector3());
+        model.position.sub(center);
+        // Scale to fit viewport
+        const size = box.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
+        if (maxDim > 0) {
+          const scale = 2 / maxDim;
+          model.scale.setScalar(scale);
+        }
+        setScene(model);
+      },
+      undefined,
+      (err) => console.error("glTF load error:", err),
+    );
+  }, [url]);
+
+  if (!scene) return null;
+
+  return <primitive object={scene} />;
+}
+
 export default function ModelViewer({ url, filename }: ModelViewerProps) {
   const ext = filename.slice(filename.lastIndexOf(".")).toLowerCase();
+  const isGltf = ext === ".glb" || ext === ".gltf";
   const isMesh = ext === ".obj" || ext === ".stl" || filename.includes("mesh");
 
   return (
@@ -95,7 +128,13 @@ export default function ModelViewer({ url, filename }: ModelViewerProps) {
         <ambientLight intensity={0.5} />
         <directionalLight position={[5, 5, 5]} intensity={1} />
         <Suspense fallback={null}>
-          {isMesh ? <MeshModel url={url} /> : <PointCloudModel url={url} />}
+          {isGltf ? (
+            <GltfModel url={url} />
+          ) : isMesh ? (
+            <MeshModel url={url} />
+          ) : (
+            <PointCloudModel url={url} />
+          )}
           <Environment preset="studio" />
         </Suspense>
         <OrbitControls

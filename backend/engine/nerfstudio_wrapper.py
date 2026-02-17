@@ -429,9 +429,25 @@ class NerfstudioWrapper(ReconstructionEngine):
                 "--output-dir", str(export_dir)
             ]
             
+        elif output_format == OutputFormat.GLTF:
+            # Export glTF/GLB -- convert from PLY mesh
+            output_path = export_dir / "model.glb"
+            # First ensure we have a mesh PLY to convert from
+            mesh_ply = export_dir / "mesh.ply"
+            pointcloud_ply = export_dir / "pointcloud.ply"
+            source_ply = mesh_ply if mesh_ply.exists() else pointcloud_ply
+
+            if not source_ply.exists():
+                # Generate a point cloud first, then convert
+                self._export_format(OutputFormat.PLY, config_file, export_dir)
+                source_ply = export_dir / "pointcloud.ply"
+
+            from .gltf_converter import ply_to_gltf
+            return ply_to_gltf(source_ply, output_path)
+
         else:
             raise ExportError(f"Unsupported export format: {output_format}")
-        
+
         logger.info(f"Running export: {' '.join(cmd)}")
         
         try:

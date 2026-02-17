@@ -34,14 +34,11 @@ export default function JobDetail() {
           const outs = await listOutputs(jobId);
           if (active) {
             setOutputs(outs);
-            // Auto-select first viewable file
+            // Auto-select best viewable file (prefer GLB > PLY > OBJ)
             if (!selectedFile) {
-              const viewable = outs.find(
-                (f) =>
-                  f.suffix === ".ply" ||
-                  f.suffix === ".obj" ||
-                  f.suffix === ".stl",
-              );
+              const viewable =
+                outs.find((f) => f.suffix === ".glb" || f.suffix === ".gltf") ||
+                outs.find((f) => f.suffix === ".ply" || f.suffix === ".obj" || f.suffix === ".stl");
               if (viewable) setSelectedFile(viewable);
             }
           }

@@ -158,6 +158,22 @@ describe("JobDetail", () => {
     });
   });
 
+  it("prefers GLB over PLY for auto-selection", async () => {
+    const job = makeJob();
+    const outputs = [
+      { name: "pointcloud.ply", path: "/out/pointcloud.ply", size_bytes: 5000, suffix: ".ply" },
+      { name: "model.glb", path: "/out/model.glb", size_bytes: 3000, suffix: ".glb" },
+    ];
+    vi.mocked(getJob).mockResolvedValue(job);
+    vi.mocked(listOutputs).mockResolvedValue(outputs);
+
+    renderWithRoute("detail-job-abcdef");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("model-viewer")).toHaveTextContent("model.glb");
+    });
+  });
+
   it("shows error banner when API fails", async () => {
     vi.mocked(getJob).mockRejectedValue(new Error("Server error"));
 

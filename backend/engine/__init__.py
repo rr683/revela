@@ -18,6 +18,7 @@ from .base import (
     generate_job_id,
 )
 from .nerfstudio_wrapper import NerfstudioWrapper
+from .gltf_converter import ply_to_gltf
 
 __all__ = [
     'CameraIntrinsics',
@@ -32,4 +33,5 @@ __all__ = [
     'ReconstructionStatus',
     'NerfstudioWrapper',
     'generate_job_id',
+    'ply_to_gltf',
 ]

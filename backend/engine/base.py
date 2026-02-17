@@ -39,6 +39,7 @@ class OutputFormat(str, Enum):
     PLY = "ply"  # Point cloud
     MESH = "mesh"  # Textured mesh
     SPLAT = "splat"  # Gaussian splat file
+    GLTF = "gltf"  # glTF/GLB (game engines, web viewers)
     DEPTH = "depth"  # Depth maps
     VIDEO = "video"  # Rendered video
 

@@ -18,6 +18,13 @@ _base_mod = importlib.util.module_from_spec(_base_spec)
 _base_spec.loader.exec_module(_base_mod)
 sys.modules["engine.base"] = _base_mod
 
+# Also pre-load engine.gltf_converter directly (no torch dependency).
+_gltf_path = Path(__file__).parent.parent / "engine" / "gltf_converter.py"
+_gltf_spec = importlib.util.spec_from_file_location("engine.gltf_converter", str(_gltf_path))
+_gltf_mod = importlib.util.module_from_spec(_gltf_spec)
+_gltf_spec.loader.exec_module(_gltf_mod)
+sys.modules["engine.gltf_converter"] = _gltf_mod
+
 from storage import FileStore, JobStore
 
 
