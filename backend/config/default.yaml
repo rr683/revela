@@ -47,7 +47,20 @@ preprocessing:
     
     # Quality settings
     quality: 95
-  
+
+  # Image set ingestion (for direct image input alongside or instead of video)
+  image_ingestion:
+    # Supported image formats
+    supported_formats:
+      - ".jpg"
+      - ".jpeg"
+      - ".png"
+      - ".tiff"
+      - ".tif"
+      - ".bmp"
+    # Maximum number of images to process
+    max_images: 500
+
   # Frame quality filtering
   quality_filter:
     # Enable automatic filtering of low-quality frames

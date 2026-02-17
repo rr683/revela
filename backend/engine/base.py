@@ -89,16 +89,22 @@ class CameraPose:
 class ReconstructionInput:
     """
     Input data for reconstruction.
-    
-    Contains either:
-    1. Video file path (for batch processing)
-    2. Frame paths + poses (for pre-processed data)
+
+    Accepts one or more of:
+    1. Video file path (frames will be extracted)
+    2. Image directory path (images used directly)
+    3. Pre-extracted frame paths + poses
+
+    Video and image inputs can be combined for greater scene coverage.
     """
     job_id: str
-    
+
     # Video input
     video_path: Optional[Path] = None
-    
+
+    # Image directory input
+    image_dir: Optional[Path] = None
+
     # Or pre-extracted frames
     frame_paths: Optional[List[Path]] = None
     camera_poses: Optional[List[CameraPose]] = None
