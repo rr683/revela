@@ -21,25 +21,27 @@ Video / Images
 
 ## Project Status
 
-### Phase 1: Core Engine -- In Progress
+### Phase 1: Core Engine -- Done
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| Configuration system | Done | YAML + Pydantic, env var overrides |
-| Reconstruction engine | Done | Nerfstudio wrapper (nerfacto, splatfacto) |
-| Video preprocessing | Done | FFmpeg extraction, quality filtering |
-| Image ingestion | Done | Direct image set input with quality filtering |
-| COLMAP pose estimation | Done | SfM with mock-pose fallback |
-| E2E test script | Done | `test_reconstruction.py` |
-| FastAPI service | Not started | Planned |
-| Celery job queue | Not started | Planned |
-| MinIO / Postgres storage | Not started | Planned |
+| Component | Status |
+|-----------|--------|
+| Configuration system (YAML + Pydantic) | Done |
+| Reconstruction engine (Nerfstudio nerfacto/splatfacto) | Done |
+| Video preprocessing (FFmpeg, quality filtering) | Done |
+| Image ingestion (direct image set input) | Done |
+| COLMAP pose estimation (SfM) | Done |
+| E2E test script | Done |
 
-### Phase 2: API & Workers (Planned)
-- FastAPI REST/WebSocket endpoints
-- Celery async job processing
-- PostgreSQL job metadata, Redis queue
-- MinIO object storage
+### Phase 2: API & Workers -- Done
+
+| Component | Status |
+|-----------|--------|
+| FastAPI REST API (upload, status, download) | Done |
+| Celery async worker (GPU task queue) | Done |
+| Job metadata store (SQLite, swappable to Postgres) | Done |
+| File store (local filesystem, upload/output management) | Done |
+| Docker Compose (Redis + API + GPU Worker) | Done |
+| Dockerfile (CUDA 11.8 + Nerfstudio) | Done |
 
 ### Phase 3: Frontend (Planned)
 - React + TypeScript UI
@@ -47,21 +49,22 @@ Video / Images
 - Video/image upload interface
 - Measurement tools
 
-### Phase 4: Production (Planned)
-- Docker Compose orchestration
+### Phase 4: Production Hardening (Planned)
 - Multi-GPU support, streaming mode
 - HIPAA-aligned security, monitoring
+- Postgres migration, MinIO object storage
 
 ## Tech Stack
 
 **Backend:** Python 3.11+, PyTorch 2.0+, Nerfstudio, COLMAP, OpenCV, FFmpeg
-**Config:** YAML + Pydantic validation
-**Planned:** FastAPI, Celery + Redis, PostgreSQL, MinIO, React + Three.js
+**API:** FastAPI, Celery + Redis, SQLite
+**Infrastructure:** Docker, Docker Compose, NVIDIA CUDA
 
 ## Quick Start
 
+### Option A: Local Development
+
 ```bash
-# 1. Setup
 cd backend
 python -m venv venv
 source venv/bin/activate   # Windows: venv\Scripts\activate
@@ -69,19 +72,67 @@ pip install -r requirements.txt
 pip install nerfstudio
 conda install -c conda-forge colmap
 
-# 2. Verify
+# Verify
 python test_imports.py
 
-# 3. Reconstruct from video
+# Reconstruct from video
 python test_reconstruction.py --video path/to/video.mp4 --quick
 
-# 4. Or reconstruct from images
+# Or from images
 python test_reconstruction.py --image-dir path/to/images/ --quick
 ```
 
-Results are saved to `data/cache/job_<id>/exports/`.
+### Option B: API Server (requires Redis)
 
-View `.ply` files with [CloudCompare](https://www.cloudcompare.org/), [MeshLab](https://www.meshlab.net/), or Blender.
+```bash
+# Start Redis
+docker run -d -p 6379:6379 redis:7-alpine
+
+# Start API server
+cd backend
+uvicorn api.main:app --reload --port 8000
+
+# Start worker (separate terminal)
+cd backend
+celery -A workers.celery_app worker --loglevel=info -Q gpu --concurrency=1
+```
+
+Then upload via the API:
+```bash
+# Upload video and create job
+curl -X POST http://localhost:8000/api/jobs \
+  -F "video=@my_video.mp4" \
+  -F "method=splatfacto"
+
+# Check status
+curl http://localhost:8000/api/jobs/{job_id}
+
+# List outputs
+curl http://localhost:8000/api/jobs/{job_id}/outputs
+
+# Download result
+curl -O http://localhost:8000/api/jobs/{job_id}/outputs/pointcloud.ply
+```
+
+### Option C: Docker Compose
+
+```bash
+docker compose up -d
+# API at http://localhost:8000
+# Health check: http://localhost:8000/health
+```
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/health` | Health check |
+| `POST` | `/api/jobs` | Create job (upload video/images) |
+| `GET` | `/api/jobs` | List all jobs |
+| `GET` | `/api/jobs/{id}` | Get job status |
+| `DELETE` | `/api/jobs/{id}` | Delete job and files |
+| `GET` | `/api/jobs/{id}/outputs` | List output files |
+| `GET` | `/api/jobs/{id}/outputs/{file}` | Download output file |
 
 ## Input Requirements
 
@@ -100,6 +151,12 @@ View `.ply` files with [CloudCompare](https://www.cloudcompare.org/), [MeshLab](
 ```
 revela/
 ├── backend/
+│   ├── api/
+│   │   ├── main.py                  # FastAPI application
+│   │   └── routes.py                # REST endpoints
+│   ├── workers/
+│   │   ├── celery_app.py            # Celery configuration
+│   │   └── tasks.py                 # Reconstruction task
 │   ├── config/
 │   │   ├── default.yaml             # All configuration
 │   │   └── config_loader.py         # Pydantic config management
@@ -110,57 +167,37 @@ revela/
 │   │   ├── video_processor.py       # Video frame extraction
 │   │   ├── image_processor.py       # Image set ingestion
 │   │   ├── colmap_estimator.py      # COLMAP pose estimation
-│   │   ├── colmap_wrapper.py        # COLMAP wrapper (used by test script)
-│   │   └── base.py                  # Shared types
-│   ├── storage/                     # Storage interfaces (stub)
-│   ├── test_imports.py              # Import validation
-│   ├── test_reconstruction.py       # E2E pipeline test
+│   │   └── colmap_wrapper.py        # COLMAP wrapper
+│   ├── storage/
+│   │   └── __init__.py              # JobStore (SQLite) + FileStore
+│   ├── test_imports.py
+│   ├── test_reconstruction.py
 │   └── requirements.txt
-├── data/
-│   ├── uploads/                     # Input videos/images
-│   ├── outputs/                     # Generated 3D models
-│   └── cache/                       # Intermediate processing
+├── data/                            # Uploads, outputs, cache, SQLite DB
 ├── docs/
-│   ├── SETUP.md                     # Detailed installation guide
-│   └── USAGE.md                     # Detailed usage guide
-└── quickstart.ps1                   # Windows setup helper
+│   ├── SETUP.md                     # Installation guide
+│   └── USAGE.md                     # Usage guide
+├── Dockerfile                       # CUDA + Nerfstudio image
+├── docker-compose.yml               # Redis + API + Worker
+└── .dockerignore
 ```
 
 ## Configuration
 
-All settings live in `backend/config/default.yaml`:
+All settings live in `backend/config/default.yaml`. Key sections:
 
-```yaml
-reconstruction:
-  default_method: "splatfacto"   # or "nerfacto"
-  max_iterations: 30000
-  resolution: 1024
+- `reconstruction` -- method, iterations, resolution
+- `preprocessing` -- FPS, max frames, image ingestion, quality filters
+- `colmap` -- feature detector, matching method
+- `api` -- port, CORS, upload limits
+- `celery` -- broker URL, concurrency
 
-preprocessing:
-  frame_extraction:
-    fps: 10
-    max_frames: 300
-  image_ingestion:
-    supported_formats: [".jpg", ".jpeg", ".png", ".tiff", ".bmp"]
-    max_images: 500
-  quality_filter:
-    enabled: true
-    min_sharpness: 10.0
-```
-
-Override any setting via environment variables: `VIDEO3D_RECONSTRUCTION_MAX_ITERATIONS=5000`.
-
-## Key Design Decisions
-
-1. **Modular engine** -- Abstract `ReconstructionEngine` base class allows swapping Nerfstudio for custom models
-2. **Dual input** -- Accepts both video files and pre-captured image sets
-3. **COLMAP with fallback** -- Uses real SfM when available, mock poses for development
-4. **Configuration-driven** -- YAML config, no hardcoded values, environment overrides
+Override via environment variables: `VIDEO3D_RECONSTRUCTION_MAX_ITERATIONS=5000`
 
 ## Documentation
 
-- [Setup Guide](docs/SETUP.md) -- Detailed installation for all platforms
-- [Usage Guide](docs/USAGE.md) -- Workflows, configuration tuning, troubleshooting
+- [Setup Guide](docs/SETUP.md) -- Installation for all platforms
+- [Usage Guide](docs/USAGE.md) -- Workflows, configuration, troubleshooting
 
 ## Hardware Requirements
 
