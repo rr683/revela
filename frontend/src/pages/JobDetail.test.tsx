@@ -10,6 +10,12 @@ vi.mock("../api/client", () => ({
   deleteJob: vi.fn(),
   listOutputs: vi.fn(),
   getOutputUrl: vi.fn((jobId: string, name: string) => `/mock/${jobId}/${name}`),
+  listJobs: vi.fn(),
+}));
+
+// Mock the WebSocket hook so it doesn't try to connect
+vi.mock("../hooks/useJobsWebSocket", () => ({
+  default: vi.fn(),
 }));
 
 // Mock ModelViewer since it needs WebGL
@@ -25,7 +31,8 @@ vi.mock("react-router-dom", async () => {
   return { ...actual, useNavigate: () => mockNavigate };
 });
 
-import { getJob, listOutputs } from "../api/client";
+import { getJob, listOutputs, listJobs } from "../api/client";
+import { JobsProvider } from "../context/JobsContext";
 
 function makeJob(overrides: Partial<Job> = {}): Job {
   return {
@@ -50,20 +57,25 @@ function makeJob(overrides: Partial<Job> = {}): Job {
 function renderWithRoute(jobId: string) {
   return render(
     <MemoryRouter initialEntries={[`/jobs/${jobId}`]}>
-      <Routes>
-        <Route path="/jobs/:jobId" element={<JobDetail />} />
-      </Routes>
+      <JobsProvider>
+        <Routes>
+          <Route path="/jobs/:jobId" element={<JobDetail />} />
+        </Routes>
+      </JobsProvider>
     </MemoryRouter>,
   );
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Default: listJobs returns empty (context initial load)
+  vi.mocked(listJobs).mockResolvedValue({ jobs: [], total: 0 });
 });
 
 describe("JobDetail", () => {
   it("shows loading state initially", () => {
     vi.mocked(getJob).mockReturnValue(new Promise(() => {}));
+    vi.mocked(listJobs).mockReturnValue(new Promise(() => {}));
     renderWithRoute("detail-job-abcdef");
 
     expect(screen.getByText("Loading job...")).toBeInTheDocument();
@@ -71,6 +83,8 @@ describe("JobDetail", () => {
 
   it("renders job metadata when loaded", async () => {
     const job = makeJob();
+    // Context loads via listJobs, JobDetail falls back to getJob
+    vi.mocked(listJobs).mockResolvedValue({ jobs: [job], total: 1 });
     vi.mocked(getJob).mockResolvedValue(job);
     vi.mocked(listOutputs).mockResolvedValue([]);
 
@@ -89,7 +103,8 @@ describe("JobDetail", () => {
   });
 
   it("shows progress bar for running jobs", async () => {
-    const job = makeJob({ status: "training", completed_at: null, quality: null });
+    const job = makeJob({ id: "training-job", status: "training", completed_at: null, quality: null });
+    vi.mocked(listJobs).mockResolvedValue({ jobs: [job], total: 1 });
     vi.mocked(getJob).mockResolvedValue(job);
 
     renderWithRoute("training-job");
@@ -103,11 +118,13 @@ describe("JobDetail", () => {
 
   it("shows error banner for failed jobs", async () => {
     const job = makeJob({
+      id: "failed-job",
       status: "failed",
       error_message: "CUDA out of memory",
       completed_at: null,
       quality: null,
     });
+    vi.mocked(listJobs).mockResolvedValue({ jobs: [job], total: 1 });
     vi.mocked(getJob).mockResolvedValue(job);
 
     renderWithRoute("failed-job");
@@ -123,13 +140,13 @@ describe("JobDetail", () => {
       { name: "model.ply", path: "/out/model.ply", size_bytes: 5242880, suffix: ".ply" },
       { name: "cameras.json", path: "/out/cameras.json", size_bytes: 2048, suffix: ".json" },
     ];
+    vi.mocked(listJobs).mockResolvedValue({ jobs: [job], total: 1 });
     vi.mocked(getJob).mockResolvedValue(job);
     vi.mocked(listOutputs).mockResolvedValue(outputs);
 
     renderWithRoute("detail-job-abcdef");
 
     await waitFor(() => {
-      // model.ply appears in both the output list and the mocked ModelViewer
       expect(screen.getAllByText("model.ply").length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText("cameras.json")).toBeInTheDocument();
     });
@@ -147,6 +164,7 @@ describe("JobDetail", () => {
       { name: "cameras.json", path: "/out/cameras.json", size_bytes: 2048, suffix: ".json" },
       { name: "scene.ply", path: "/out/scene.ply", size_bytes: 1024, suffix: ".ply" },
     ];
+    vi.mocked(listJobs).mockResolvedValue({ jobs: [job], total: 1 });
     vi.mocked(getJob).mockResolvedValue(job);
     vi.mocked(listOutputs).mockResolvedValue(outputs);
 
@@ -164,6 +182,7 @@ describe("JobDetail", () => {
       { name: "pointcloud.ply", path: "/out/pointcloud.ply", size_bytes: 5000, suffix: ".ply" },
       { name: "model.glb", path: "/out/model.glb", size_bytes: 3000, suffix: ".glb" },
     ];
+    vi.mocked(listJobs).mockResolvedValue({ jobs: [job], total: 1 });
     vi.mocked(getJob).mockResolvedValue(job);
     vi.mocked(listOutputs).mockResolvedValue(outputs);
 
@@ -174,18 +193,19 @@ describe("JobDetail", () => {
     });
   });
 
-  it("shows error banner when API fails", async () => {
+  it("shows error when API fails to load job", async () => {
     vi.mocked(getJob).mockRejectedValue(new Error("Server error"));
 
     renderWithRoute("bad-job");
 
     await waitFor(() => {
-      expect(screen.getByText("Server error")).toBeInTheDocument();
+      expect(screen.getByText("Failed to load job")).toBeInTheDocument();
     });
   });
 
   it("hides delete button while job is running", async () => {
-    const job = makeJob({ status: "preprocessing", completed_at: null, quality: null });
+    const job = makeJob({ id: "running-job", status: "preprocessing", completed_at: null, quality: null });
+    vi.mocked(listJobs).mockResolvedValue({ jobs: [job], total: 1 });
     vi.mocked(getJob).mockResolvedValue(job);
 
     renderWithRoute("running-job");
@@ -199,6 +219,7 @@ describe("JobDetail", () => {
 
   it("shows delete button for completed jobs", async () => {
     const job = makeJob();
+    vi.mocked(listJobs).mockResolvedValue({ jobs: [job], total: 1 });
     vi.mocked(getJob).mockResolvedValue(job);
     vi.mocked(listOutputs).mockResolvedValue([]);
 

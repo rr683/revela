@@ -1,47 +1,30 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import FileUpload from "../components/FileUpload";
 import JobCard from "../components/JobCard";
-import { createJob, deleteJob, listJobs } from "../api/client";
-import type { Job } from "../types";
+import { createJob, deleteJob } from "../api/client";
+import { useJobs } from "../context/JobsContext";
 
 export default function Dashboard() {
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { jobs, loading, error: contextError, removeJob, addJob } = useJobs();
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const fetchJobs = useCallback(async () => {
-    try {
-      const resp = await listJobs();
-      setJobs(resp.jobs);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load jobs");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Poll every 5s for status updates
-  useEffect(() => {
-    fetchJobs();
-    const interval = setInterval(fetchJobs, 5000);
-    return () => clearInterval(interval);
-  }, [fetchJobs]);
+  const error = localError || contextError;
 
   const handleUpload = async (
     files: { video?: File; images?: File[] },
     method: string,
   ) => {
     setUploading(true);
-    setError(null);
+    setLocalError(null);
     try {
       const job = await createJob(files, { method });
+      addJob(job);
       navigate(`/jobs/${job.id}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed");
+      setLocalError(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setUploading(false);
     }
@@ -50,9 +33,9 @@ export default function Dashboard() {
   const handleDelete = async (jobId: string) => {
     try {
       await deleteJob(jobId);
-      setJobs((prev) => prev.filter((j) => j.id !== jobId));
+      removeJob(jobId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Delete failed");
+      setLocalError(e instanceof Error ? e.message : "Delete failed");
     }
   };
 

@@ -7,6 +7,7 @@ Usage:
 
 import logging
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -16,17 +17,26 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config.config_loader import get_config
 from api.routes import router
+from api.ws import websocket_endpoint, start_subscriber, stop_subscriber
 
 logger = logging.getLogger(__name__)
 
 config = get_config()
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    start_subscriber()
+    yield
+    stop_subscriber()
+
+
 def create_app() -> FastAPI:
     application = FastAPI(
         title="Revela - 3D Reconstruction API",
         description="Convert video and images into 3D models using NeRF and Gaussian Splatting",
-        version="0.2.0",
+        version="0.3.0",
+        lifespan=lifespan,
     )
 
     application.add_middleware(
@@ -38,10 +48,11 @@ def create_app() -> FastAPI:
     )
 
     application.include_router(router, prefix="/api")
+    application.websocket("/ws/jobs")(websocket_endpoint)
 
     @application.get("/health")
     async def health():
-        return {"status": "ok", "version": "0.2.0"}
+        return {"status": "ok", "version": "0.3.0"}
 
     return application
 

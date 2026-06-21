@@ -1,14 +1,18 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { deleteJob, getJob, getOutputUrl, listOutputs } from "../api/client";
+import { deleteJob, getOutputUrl, listOutputs } from "../api/client";
+import { useJobs } from "../context/JobsContext";
 import StatusBadge from "../components/StatusBadge";
 import ModelViewer from "../components/ModelViewer";
-import type { Job, OutputFile } from "../types";
+import type { OutputFile } from "../types";
 
 export default function JobDetail() {
   const { jobId } = useParams<{ jobId: string }>();
   const navigate = useNavigate();
-  const [job, setJob] = useState<Job | null>(null);
+  const { getJob, refreshJob, removeJob } = useJobs();
+
+  const job = getJob(jobId ?? "");
+
   const [outputs, setOutputs] = useState<OutputFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<OutputFile | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -19,49 +23,42 @@ export default function JobDetail() {
       )
     : false;
 
+  // Fetch job from server if not in context yet
   useEffect(() => {
     if (!jobId) return;
+    if (!job) {
+      refreshJob(jobId).catch(() => {
+        setError("Failed to load job");
+      });
+    }
+  }, [jobId, job, refreshJob]);
+
+  // Fetch outputs when job completes
+  useEffect(() => {
+    if (!jobId || !job || job.status !== "completed") return;
     let active = true;
 
-    const poll = async () => {
-      try {
-        const j = await getJob(jobId);
-        if (!active) return;
-        setJob(j);
-        setError(null);
-
-        if (j.status === "completed") {
-          const outs = await listOutputs(jobId);
-          if (active) {
-            setOutputs(outs);
-            // Auto-select best viewable file (prefer GLB > PLY > OBJ)
-            if (!selectedFile) {
-              const viewable =
-                outs.find((f) => f.suffix === ".glb" || f.suffix === ".gltf") ||
-                outs.find((f) => f.suffix === ".ply" || f.suffix === ".obj" || f.suffix === ".stl");
-              if (viewable) setSelectedFile(viewable);
-            }
-          }
-        }
-      } catch (e) {
-        if (active) {
-          setError(e instanceof Error ? e.message : "Failed to load job");
-        }
+    listOutputs(jobId).then((outs) => {
+      if (!active) return;
+      setOutputs(outs);
+      if (!selectedFile) {
+        const viewable =
+          outs.find((f) => f.suffix === ".glb" || f.suffix === ".gltf") ||
+          outs.find((f) => f.suffix === ".ply" || f.suffix === ".obj" || f.suffix === ".stl");
+        if (viewable) setSelectedFile(viewable);
       }
-    };
+    }).catch(() => {
+      // outputs not ready yet -- will retry on next status update
+    });
 
-    poll();
-    const interval = setInterval(poll, isRunning ? 3000 : 15000);
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
-  }, [jobId, isRunning]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { active = false; };
+  }, [jobId, job?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDelete = async () => {
     if (!jobId) return;
     try {
       await deleteJob(jobId);
+      removeJob(jobId);
       navigate("/");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Delete failed");

@@ -26,6 +26,7 @@ from preprocessing.video_processor import VideoPreprocessor
 from preprocessing.image_processor import ImageProcessor
 from preprocessing.colmap_wrapper import COLMAPWrapper
 from storage import JobStore, FileStore
+from api.ws import publish_job_update
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,14 @@ def _get_stores():
     data_dir = Path(config.storage.cache_dir).parent  # data/
     db_path = data_dir / "revela.db"
     return JobStore(db_path), FileStore(data_dir)
+
+
+def _update_and_notify(job_store: JobStore, job_id: str, status: str, **kwargs):
+    """Update job status in DB and publish via Redis for WebSocket clients."""
+    job_store.update_status(job_id, status, **kwargs)
+    job = job_store.get_job(job_id)
+    if job:
+        publish_job_update(job)
 
 
 @app.task(bind=True, name="workers.tasks.run_reconstruction")
@@ -57,7 +66,7 @@ def run_reconstruction(self, job_id: str):
 
     try:
         # -- Stage 1: Preprocessing --
-        job_store.update_status(job_id, ReconstructionStatus.PREPROCESSING.value)
+        _update_and_notify(job_store, job_id, ReconstructionStatus.PREPROCESSING.value)
 
         preprocessing_config = config.preprocessing.model_dump()
         cache_dir = file_store.get_cache_dir(job_id)
@@ -100,7 +109,7 @@ def run_reconstruction(self, job_id: str):
             consolidated.append(dest)
 
         # -- Stage 2: Pose estimation --
-        job_store.update_status(job_id, ReconstructionStatus.POSE_ESTIMATION.value)
+        _update_and_notify(job_store, job_id, ReconstructionStatus.POSE_ESTIMATION.value)
         logger.info(f"[{job_id}] Running COLMAP on {len(consolidated)} frames")
 
         colmap = COLMAPWrapper(config.colmap.model_dump())
@@ -110,7 +119,7 @@ def run_reconstruction(self, job_id: str):
         logger.info(f"[{job_id}] Estimated {len(poses)} poses")
 
         # -- Stage 3: Reconstruction --
-        job_store.update_status(job_id, ReconstructionStatus.TRAINING.value)
+        _update_and_notify(job_store, job_id, ReconstructionStatus.TRAINING.value)
 
         method = job.get("method", config.reconstruction.default_method)
         job_config = job.get("config_json") or {}
@@ -154,8 +163,8 @@ def run_reconstruction(self, job_id: str):
                 num_frames=len(consolidated),
                 duration_seconds=result.duration_seconds,
             )
-            job_store.update_status(
-                job_id, ReconstructionStatus.COMPLETED.value
+            _update_and_notify(
+                job_store, job_id, ReconstructionStatus.COMPLETED.value
             )
 
             logger.info(
@@ -170,8 +179,8 @@ def run_reconstruction(self, job_id: str):
 
     except Exception as e:
         logger.error(f"[{job_id}] Failed: {e}", exc_info=True)
-        job_store.update_status(
-            job_id,
+        _update_and_notify(
+            job_store, job_id,
             ReconstructionStatus.FAILED.value,
             error_message=str(e),
         )

@@ -11,6 +11,11 @@ vi.mock("../api/client", () => ({
   deleteJob: vi.fn(),
 }));
 
+// Mock the WebSocket hook so it doesn't try to connect
+vi.mock("../hooks/useJobsWebSocket", () => ({
+  default: vi.fn(),
+}));
+
 // Mock useNavigate
 const mockNavigate = vi.fn();
 vi.mock("react-router-dom", async () => {
@@ -19,6 +24,7 @@ vi.mock("react-router-dom", async () => {
 });
 
 import { listJobs, deleteJob } from "../api/client";
+import { JobsProvider } from "../context/JobsContext";
 
 function makeJob(overrides: Partial<Job> = {}): Job {
   return {
@@ -40,6 +46,16 @@ function makeJob(overrides: Partial<Job> = {}): Job {
   };
 }
 
+function renderDashboard() {
+  return render(
+    <MemoryRouter>
+      <JobsProvider>
+        <Dashboard />
+      </JobsProvider>
+    </MemoryRouter>,
+  );
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -47,11 +63,7 @@ beforeEach(() => {
 describe("Dashboard", () => {
   it("shows loading state initially", () => {
     vi.mocked(listJobs).mockReturnValue(new Promise(() => {})); // never resolves
-    render(
-      <MemoryRouter>
-        <Dashboard />
-      </MemoryRouter>,
-    );
+    renderDashboard();
 
     expect(screen.getByText("Loading...")).toBeInTheDocument();
   });
@@ -59,11 +71,7 @@ describe("Dashboard", () => {
   it("renders header and upload section", async () => {
     vi.mocked(listJobs).mockResolvedValue({ jobs: [], total: 0 });
 
-    render(
-      <MemoryRouter>
-        <Dashboard />
-      </MemoryRouter>,
-    );
+    renderDashboard();
 
     expect(screen.getByText("Revela")).toBeInTheDocument();
     expect(
@@ -75,11 +83,7 @@ describe("Dashboard", () => {
   it("shows empty state when no jobs exist", async () => {
     vi.mocked(listJobs).mockResolvedValue({ jobs: [], total: 0 });
 
-    render(
-      <MemoryRouter>
-        <Dashboard />
-      </MemoryRouter>,
-    );
+    renderDashboard();
 
     await waitFor(() => {
       expect(
@@ -95,11 +99,7 @@ describe("Dashboard", () => {
     ];
     vi.mocked(listJobs).mockResolvedValue({ jobs, total: 2 });
 
-    render(
-      <MemoryRouter>
-        <Dashboard />
-      </MemoryRouter>,
-    );
+    renderDashboard();
 
     await waitFor(() => {
       expect(screen.getByText("job-aaa-bbb-")).toBeInTheDocument();
@@ -112,11 +112,7 @@ describe("Dashboard", () => {
   it("shows error banner when API call fails", async () => {
     vi.mocked(listJobs).mockRejectedValue(new Error("Network error"));
 
-    render(
-      <MemoryRouter>
-        <Dashboard />
-      </MemoryRouter>,
-    );
+    renderDashboard();
 
     await waitFor(() => {
       expect(screen.getByText("Network error")).toBeInTheDocument();
@@ -128,11 +124,7 @@ describe("Dashboard", () => {
     vi.mocked(listJobs).mockResolvedValue({ jobs, total: 1 });
     vi.mocked(deleteJob).mockResolvedValue(undefined);
 
-    render(
-      <MemoryRouter>
-        <Dashboard />
-      </MemoryRouter>,
-    );
+    renderDashboard();
 
     await waitFor(() => {
       expect(screen.getByText("job-to-delet")).toBeInTheDocument();
